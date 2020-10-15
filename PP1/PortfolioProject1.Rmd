@@ -1,0 +1,195 @@
+---
+title: "CSCI 385 - First Deliverable"
+author: "Jamie Van Winckel"
+date: "10/15/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(ggplot2)
+election_data <- read.csv("US_Presidential_Election_2016_By_County.csv")
+
+```
+
+
+# Introduction
+
+For my portfolio project I will be focusing on election data. I am motivated to focus on this subject because it is an important current issue, I am very interested in politics, and the accuracy of my findings can be determined by the end of the semester with the outcome of the 2020 election. With the election less than two months away, it is a buzzing topic and something many people are thinking about. Some of the many things that interest me in this domain are people’s voting habits, swing states, external factors that affect incumbency, and the accuracy of polling.
+
+The data set that I have has an abundance of demographic information about every county in the United States. However, this data will be used as additional information for my Portfolio Project. The way the data is presented makes the data set difficult to stand on it's own, which is why my next Discovery stage will be focused on finding Census data along with Senate, House, and Presidential Race data.
+
+
+# Data Set
+  
+I found this data set on Kaggle.com. It is unclear who collected the data but I believe it is partially (if not fully) collected from Census data. This data set is abundant with information, however there are big limitations with this data in terms of visualizations. The majority of the columns are displayed as percentages or counts, which makes it difficult to produce any other visualizations than scatterplots.
+
+Data Manipulations: I deleted these columns: elevation,	Votes16 Trumpd,	Votes16 Clintonh,	Votes16 Johnsong,	Votes16 Steinj,	total16,	Other16 Frac,	Rep16 Frac2,	Dem16 Frac2,	Statecode Prev,	total08,	total12,	other08,	other12,	Other12 Frac,	Other08 Frac,	Rep12 Frac2,	Rep08 Frac2,	Dem12 Frac2, and	Dem08 Frac2.
+
+* `State` - chr - state name.
+* `ST` - chr - state abbreviation.
+* `Fips` - int - identifying number of a geographical area, in this case an identifying number of a county.
+* `County` - chr - county name.
+* `Precincts` - int - number of precincts in the county.
+* `Votes` - int - total number of votes.
+* `Democrats/Republicans 08/12 (Votes)` - int - number of votes for each party in 2008 and 2012.
+    * `Democrats 08 (Votes)`
+    * `Democrats 12 (Votes)`
+    * `Republicans 08 (Votes)`
+    * `Republicans 12 (Votes)`
+* `Democrats/Republicans/Green/Libertarian 08/12/16` - num - percentage of votes for each party in 2008, 2012, and 2016.
+    * `Republicans 2016`
+    * `Democrats 2016`
+    * `Green 2016`
+    * `Libertarians 2016`
+    * `Republicans 2012`
+    * `Republicans 2008`
+    * `Democrats 2012`
+    * `Democrats 2008`
+* `Level of education` - num - percentage of the county with that level of education.
+    * `Less Than High School Diploma`
+    * `At Least High School Diploma`
+    * `At Least Bachelors's Degree`
+    * `Graduate Degree`
+* `School Enrollment` - num - percentage of children enrolled in school.
+* `Median Earnings 2010` - num - median household income during 2010.
+* `Race` - num - percentage of the county’s population for each race.
+    * `White (Not Latino) Population`
+    * `African American Population`
+    * `Native American Population`
+    * `Asian American Population`
+    * `Other Race or Races`
+    * `Latino Population`
+* `Children Under 6 Living in Poverty` - num - percentage of children under the age of 6 living in poverty.
+* `Adults 65 and Older Living in Poverty` - num - percentage of adults over the age of 65 living in poverty
+* `Total Population` - int - number of people living in the county
+* `Preschool.Enrollment.Ratio.enrolled.ages.3.and.4` - num - percentage of children aged 3 and 4 enrolled in preschool
+* `Poverty.Rate.below.federal.poverty.threshold` - num - 
+* `Child.Poverty.living.in.families.below.the.poverty.line` - num - percentage of children living in families below the poverty line
+* `Management.professional.and.related.occupations` - num - percentage of occupations that are management, professional, and other related occupations in the county
+* `Service.occupationsSales.and.office.occupations` - num - percentage of occupations that are service, sales, and office occupations in the county
+* `Farming.fishing.and.forestry.occupations` - num - percentage of occupations that are farming, fishing, and forestry occupations in the county
+* `Construction.extraction.maintenance.and.repair.occupations` - num - percentage of occupations that are construction, extraction, maintenance, and repair occupations in the county
+* `Production.transportation.and.material.moving.occupations` - num - percentage of occupations that are production, transportation, and material moving occupations in the county
+* `Race` - num - percentage of the county’s population for each race
+    * `White`
+    * `Black`
+    * `Hispanic`
+    * `Asian`
+    * `Amerindian`
+    * `Other`
+    * `White Asian`
+* `Sire Homogeneity` - num - ratio of people in a relationship with someone of the same race in the county.
+* `Median Age` - num - the median age for the county.
+* `Poor.physical.health.days` - num - the average number of poor physical health days a person takes off of work in the county.
+* `Poor.mental.health.days` - num - the average number of poor mental health days a person takes off of work in the county.
+* `Low.birthweight` - num - the ratio of children born with a low birth weight in the county.
+* `Teen.births` - num - number of teenagers giving birth per year.
+* `Children.in.single.parent.households` - num - ratio of children living with a single parent.
+* `Adult.smoking` - num - ratio of adult smokers in the county.
+* `Adult.obesity` - num - ratio of adults that are obese in the county.
+* `Diabetes` - num - ratio of adults that have diabetes in the county.
+* `Sexually.transmitted.infections` - num - ratio of sexually trasmitted infections in the county.
+* `HIV.prevalence.rate` - num - ratio of people with HIV in the county.
+* `Uninsured` - num - ratio of people that are uninsured in the county.
+* `Unemployment` - num - ratio of adults that are unemployed in the county.
+* `Violent.crime` - num - ratio of violent crime in the county.
+* `Homicide.rateInjury.deaths` - num - ratio of homicides in the county.
+* `Infant.mortality` - num - ratio of infant deaths in the county.
+
+
+# Exploratory Data Analysis
+
+```{r election_data}
+summary(election_data)
+```
+
+
+```{r message=FALSE, warning=FALSE}
+ggplot(data = election_data, mapping = aes(x = Construction.extraction.maintenance.and.repair.occupations, y = Democrats.2016)) + 
+  geom_point(mapping = aes(), alpha = 0.2) +
+  geom_smooth(se = FALSE, colour = "Blue")
+```
+This graph shows the relationship between construction, extraction, maintenance, and repair occupations to the amount of Democrat votes in 2016 in a county. The graph shows a general decline where when these jobs are more prevalent, the amount of democrat votes declines. I think this is an interesting find, something that I would like to explore more.
+
+
+
+```{r message=FALSE, warning=FALSE}
+ggplot(data = election_data, mapping = aes(x = Construction.extraction.maintenance.and.repair.occupations, y = Republicans.2016)) + 
+  geom_point(mapping = aes(), alpha = 0.2) +
+  geom_smooth(se = FALSE, colour = "Red")
+```
+This graph shows the relationship between construction, extraction, maintenance, and repair occupations to the amount of Republican votes in 2016 in a county. The graph shows a general incline where when these jobs are more prevalent, the amount of republican votes increases.
+
+
+
+```{r message=FALSE, warning=FALSE}
+ggplot(data = election_data, mapping = aes(x = Sexually.transmitted.infections, y = Violent.crime, color = ST)) +
+  geom_point(mapping = aes(), alpha = 0.2) +
+  geom_smooth(se = FALSE, size = 0.5)
+```
+This graph shows the correlation between violent crime and sexually transmitted infections. This visualization is too busy and hard to interpret, because you cannot tell which state each line is. The topic also does not fully pertain to my project but I made this visualization to learn about my data. I will not be pursuing this topic.
+
+
+
+```{r message=FALSE, warning=FALSE}
+#d <- filter(election_data, ST %in% c("CA", "NE", "FL"))
+ggplot(election_data, aes(x=Less.Than.High.School.Diploma, y = Median.Earnings.2010, color=ST)) +
+  geom_smooth(se = FALSE, size = 0.5)
+```
+This graph is interesting because it shows a strong correlation between the median earnings of a county and the percentage of people with less than a high school diploma. Almost every state shows a decline in median earnings when a larger amount of the population has less than a high school diploma. I am interested in pursuing this topic in the context of education level and which party has more votes in a specific county.
+
+
+
+```{r message=FALSE, warning=FALSE}
+ggplot(election_data, mapping = aes(x = Adult.obesity, y = Diabetes)) +
+  geom_point(mapping = aes(), alpha = 0.2) +
+  geom_smooth(se = FALSE, colour = "Black")
+  #geom_histogram(binwidth = 1000)
+  #geom_density(aes(fill = ST), alpha = 0.3) +
+  #facet_wrap(~ST, nrow = 6)
+```
+This graph shows a strong correlation between diabetes and adult obesity, which is not surprising. I am interested in seeing if there is a correlation between the majority party of a county and the overall health of the people in the county.
+
+
+
+```{r message=FALSE, warning=FALSE}
+d <- filter(election_data, State != "Alaska")
+ggplot(data = d, mapping = aes(x = Management.professional.and.related.occupations , y = Median.Earnings.2010, color = ST)) + 
+  geom_point(binwidth = 0.1) +
+  geom_smooth(se = FALSE, size = 1, colour = "Blue")
+```
+This graph shows the positive correlation between management, professional, and related occupations and median earnings in 2010. Where there is a higher rate of these occupations there is generally higher median earnings.
+
+
+
+```{r message=FALSE, warning=FALSE}
+ggplot(data = election_data, mapping = aes(x = Sire.Homogeneity, y = Republicans.2016)) + 
+  geom_point(mapping = aes(), alpha = 0.2) +
+  geom_smooth(se = FALSE, colour = "Red")
+```
+This graph shows a positive correlation between Republican voting and sire homogeneity. When there are more Republican votes, sire homogeneity is more prevalent.
+
+
+
+# Data Science Questions
+
+* What are the demographic characteristics that makes a county more likely to vote for a certain party?
+  This is possible to establish based on the data set I currently have. It could also be made more effective with other data sets about demographics and voting records.
+
+* Which way will the swing states vote in the 2020 Presidential Election?
+  This question will require more data about previous voting records.
+
+* Is it possible to determine who a citizen will vote for based on their socioeconomic status, race, level of education, profession, and previous voting records?
+  I would like to be able to answer this question. This question will require more data on voting records preferably specific to socioeconomic status, race, level of education, and profession.
+
+* How many counties will vote for a different party than the party it voted for in the previous election?
+  It will be more accurate to answer this question with more data but a prediction could be made from the data that I have.
+
+
+
+# Conclusion
+
+The data set I have is stocked with information, and this will be very useful. However, the majority of the data does not immediately pertain to my project. My next step is to find Census data and voting records of the House of Representatives, Senate, and Presidential elections to get a full understanding of the route I want to go. The data set I have will proove very useful for my predictions, but I need more data about voting records first.
+
