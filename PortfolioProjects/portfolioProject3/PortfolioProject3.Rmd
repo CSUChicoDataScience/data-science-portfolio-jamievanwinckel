@@ -1,0 +1,399 @@
+---
+title: "CSCI 385 - Third Deliverable"
+author: "Jamie Van Winckel"
+date: "12/14/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(ggplot2)
+library(rvest)
+library(modelr)
+library(splines)
+library(caret)
+
+stateInfo <- read.csv("States.csv")
+voterTurnout2008 <- read.csv("2008 November General Election - Turnout Rates.csv")
+voterTurnout2012 <- read.csv("2012 November General Election v2.0 - Turnout Rates.csv")
+voterTurnout2016 <- read.csv("2016 November General Election - Turnout Rates.csv")
+voterTurnout2020 <- read.csv("2020 November General Election - Turnout Rates.csv")
+```
+
+
+# Introduction
+
+Is it possible to predict the voter turnout percentage of a state in a presidential election based on the state's voter ID law?
+
+This question matters because if it is possible to predict voter turnout based on voter ID law then it is possible to increase voter turnout by changing the voter ID law. Such a low amount of Americans vote every year, and after this 2020 election we saw a huge increase in voters. If there is a way to get as many Americans that voted this year to vote every year, it could have a real impact to get everyone's voices heard.
+
+If voter turnout is related to different voter laws, then my prediction will be a success. However, if there is no relation or not a strong enough relation then my prediction will be false.
+
+
+There are five different voter ID laws in the United States. They come in four categories: photo and non-photo, and strict and non-strict.
+
+* Photo ID requirements:
+  - States with photo ID requirements mandate voters to bring a state-issued driver's license, non-driver ID or voter card, US passport, or a military, tribal, student, or state employee card to the polls in order to vote.
+  
+* Non-Photo ID requirements:
+  - Non-photo ID states allow voters to bring official government mailings or other recent documents that bear the voter's name and address, like a utility or rent bill, pay-stub, or bank statement.
+  
+* Non-Strict requirements:
+  - Non-strict states allow voters without the required documentation to cast a sworn affidavit or reasonable impediment declaration or to have a poll worker vouch for them in order to vote
+
+* Strict requirements:
+  - Strict states require voters to cast a provisional ballot and later provide additional proof of residency to their election officials in order for their vote to count. 
+
+The five different types of voter ID laws are listed below:
+
+  * No ID requirement
+  * Non-strict non-photo ID
+  * Non-strict photo ID
+  * Strict non-photo ID
+  * Strict photo ID
+These five types will be used to predict if voter turnout is affected by the voter laws of the state.
+
+## First Two Deliverables Summary
+
+My first deliverable focused on a large data set that had an abundance of demographic information for nearly every county in the United States (except for Alaska). This dataset was difficult to make visualizations with because all of the data was percentages and there was no categorical data.
+
+My second deliverable led me in a very different direction in the election data topic. I found interesting data about state voter ID laws and voter turnout during presidential elections from 2008 to 2020. This led me to question if a state's voter ID law has an impact on voter turnout. Since I went down this path, I did not use the data set from my first deliverable. I believe this topic is extremely interesting and very relevant, but it is difficult to generate a useful model due to the lack of data. There are only 50 states, when the states are split into their voter ID law categories some categories only have 3 or 5 states. This has put a hinder on the effectiveness of splitting the data up. 
+
+## Web Scraping
+I web scraped a website to get information on the population of people over 18 per state. This is also known as the Voting AGe Population. This is not the number of eligible voters because there are numerous reasons why people cannot vote.
+```{r}
+
+voterInfo <- read_html("https://www.federalregister.gov/documents/2019/10/04/2019-21663/estimates-of-the-voting-age-population-for-2018")
+
+voterInfo <- setNames(data.frame(cbind(
+  html_text(html_nodes(voterInfo, ".border-right-single")),
+  html_text(html_nodes(voterInfo, ".right"))
+)), c("StateName", "PopulationOver18"))
+
+voterInfo$PopulationOver18 <- as.numeric(gsub(",","",voterInfo$PopulationOver18))
+voterInfo <- voterInfo[-1,]
+voterInfo <- as_tibble(voterInfo)
+head(voterInfo)
+
+```
+
+# Data Summary
+This table has information per state about voting and election information. This is arguably one of the most important tables in this project. This table is the reason why I chose to investigate the correlation between voter ID laws and voter turnout per state.
+```{r}
+head(stateInfo)
+```
+This table shows the population over 18 per state.
+```{r}
+head(voterInfo)
+```
+
+The next four tables have information per state about the eligible voting population and the turnout per presidential election from 2008 to 2020. These tables have been very helpful, they have allowed me to test my model to see if I can accurately guess what a state's voter turnout will be one year based on voter information from the previous year.
+```{r}
+head(voterTurnout2008)
+head(voterTurnout2012)
+head(voterTurnout2016)
+head(voterTurnout2020)
+```
+
+Below I am making a tibble that has information about the state's voter ID laws, voter turnout information from 2012 and 2016 (so that I can make a prediction of voter turnout in 2016 based on 2012 turnout), and a new column of voter turnout in 2016 per state (I will use this column to compare with my prediction model).
+
+The four tables each contain information per state about the voting turnout that year, amount of eligible people, amount of people of voting age, and more. In the second deliverable I did not realize I had 6 NA's in the data that went into the calculation of the voterTurnout2016 variable. No there are no NA's, I went to the state government of each NA and documented the correct number of the missing value.
+```{r}
+voterTurnout2016 <- voterTurnout2016 %>%
+  mutate(turnoutPercent2016 = (Total.Ballots.Counted2016 / Voting.Eligible.Population.VEP2016) * 100)
+turnout1216 <- inner_join(voterTurnout2016, voterTurnout2012, by = c("State" = "State"))
+turnout1216 <- inner_join(stateInfo, turnout1216, by = c("StateName" = "State"))
+head(turnout1216)
+
+stateVoterTurnout2008 <- inner_join(stateInfo, voterTurnout2008, by = c("StateName" = "State"))
+stateVoterTurnout2012 <- inner_join(stateInfo, voterTurnout2012, by = c("StateName" = "State"))
+head(stateVoterTurnout2012)
+stateVoterTurnout2016 <- inner_join(stateInfo, voterTurnout2016, by = c("StateName" = "State"))
+head(stateVoterTurnout2016)
+stateVoterTurnout2020 <- inner_join(stateInfo, voterTurnout2020, by = c("StateName" = "State"))
+```
+
+# Data Exploration
+
+This graph is a scatterplot of the number of electoral votes of a given state and their voter turnout percentage in 2016. I think it is interesting that the only states that have a voter turnout rate higher than 70% have 10 or fewer electoral votes. This could possibly be because the more elecotral votes a state has the more people they have, which could lead to lower voter turnout statistically speaking.
+```{r message=FALSE, warning=FALSE}
+ggplot(stateVoterTurnout2016, mapping = aes(x = ElectoralVotes, y = turnoutPercent2016, color = ClosedPrimary)) +
+  geom_point(alpha = 1) 
+```
+
+Here I combined the stateInfo and voterInfo tables so that I could look at the variable PopulationOver18 with the stateInfo table in the next graph.
+```{r}
+stateVoterInfo <- inner_join(stateInfo, voterInfo, by = c("StateName" = "StateName"))
+head(stateVoterInfo)
+```
+
+This graph represents the number of electoral votes per state and the number of people over 18. It is important to note this variable represents the voting age population, not the voting eligible population. As you can see there is a strong correlation between these two variables, but this is not surprising because this is a variable that determines the number of electoral votes a state gets.
+```{r message=FALSE, warning=FALSE}
+ggplot(stateVoterInfo, mapping = aes(x = ElectoralVotes, y = PopulationOver18, color = VoterIDLawVerbose)) +
+  geom_point(alpha = 1)
+```
+
+This bar graph shows the number of states that have a certain voter ID law. No ID requirement has by far the most number of states. Surprisingly Strict photo ID has more than double of Strict non-photo ID.
+```{r message=FALSE, warning=FALSE}
+ggplot(stateInfo, mapping = aes(x = VoterIDLaw, color = VoterIDLawVerbose)) +
+  geom_bar(mapping = aes(fill = VoterIDLawVerbose), alpha = 0.2) 
+```
+
+This graph is similar to the previous graph, except for one change. The voter ID laws are color coded for which states allow for party registration. This is a variable in the stateInfo table. There is nothing too jaw dropping here, but it is clear that there are more states that allow party registration than not.
+```{r message=FALSE, warning=FALSE}
+ggplot(stateInfo, mapping = aes(x = VoterIDLaw, color = AllowsPartyRegistration)) +
+  geom_bar(aes(fill = AllowsPartyRegistration))
+```
+
+## Validation
+```{r}
+set.seed(1234)
+rest_rows <- as.vector(createDataPartition(turnout1216$turnoutPercent2016, p = 0.8, list = FALSE))
+test <- turnout1216[-rest_rows, ]
+rest <- turnout1216[rest_rows, ]
+
+ggplot(data = rest) +
+  geom_histogram(mapping = aes(x = ElectoralVotes), binwidth = .5)
+
+ggplot(data = rest) +
+  geom_point(mapping = aes(x = VoterIDLawVerbose, y = Voting.Eligible.Population.VEP2016), alpha = 0.2)
+
+ggplot(data = rest) +
+  geom_boxplot(mapping = aes(x = VoterIDLawVerbose, y = Voting.Eligible.Population.VEP2016))
+
+ggplot(data = rest) +
+  geom_boxplot(mapping = aes(x = VoterIDLawVerbose, y = Highest.Office2016), alpha = 0.2)
+
+
+train_rows <- as.vector(createDataPartition(rest$turnoutPercent2016, p = 0.75, list = FALSE))
+
+validate <- rest[-train_rows, ]
+train <- rest[train_rows, ]
+```
+## Training Different Models
+#### First Model
+```{r}
+model1 <- lm(turnoutPercent2016 ~ Voting.Age.Population.VAP2016 + Total.Ballots.Counted2012 + Voting.Eligible.Population.VEP2012 + VoterIDLawVerbose, data = train)
+model1
+
+predictions1 <- add_predictions(validate, model1)
+head(predictions1)
+
+ggplot(data = predictions1, mapping = aes(x = turnoutPercent2016, y = pred, color = VoterIDLawVerbose)) + 
+  geom_point() +
+  geom_abline(intercept = 0, slope = 1, color = "red")
+
+R2(predictions1$pred, predictions1$turnoutPercent2016)
+MAE(predictions1$pred, predictions1$turnoutPercent2016)
+RMSE(predictions1$pred, predictions1$turnoutPercent2016)
+
+resids1 <- add_residuals(validate, model1)
+
+ggplot(data = resids1, mapping = aes(x = turnoutPercent2016, y = resid, color = VoterIDLawVerbose)) +
+  geom_ref_line(h = 0) +
+  geom_point()
+```
+This was my original model in Deliverable #2. The R squared variable is 0.287, this is not as close to one as I would like it to be. The MAE variable is 5.34 and the RMSE variable is 8.15. These are larger than I would like them to be. I am going to add the variable ElecotralVotes to the model to test if the model gets better.
+
+#### Second Model
+```{r}
+model2 <- lm(turnoutPercent2016 ~ Voting.Age.Population.VAP2016 + Total.Ballots.Counted2012 + Voting.Eligible.Population.VEP2012 + ElectoralVotes + VoterIDLawVerbose, data = train)
+model2
+
+predictions2 <- add_predictions(validate, model2)
+head(predictions2)
+
+ggplot(data = predictions2, mapping = aes(x = turnoutPercent2016, y = pred, color = VoterIDLawVerbose)) + 
+  geom_point() +
+  geom_abline(intercept = 0, slope = 1, color = "red")
+
+R2(predictions2$pred, predictions2$turnoutPercent2016)
+MAE(predictions2$pred, predictions2$turnoutPercent2016)
+RMSE(predictions2$pred, predictions2$turnoutPercent2016)
+
+resids2 <- add_residuals(validate, model2)
+
+ggplot(data = resids2, mapping = aes(x = turnoutPercent2016, y = resid, color = VoterIDLawVerbose)) +
+  geom_ref_line(h = 0) +
+  geom_point()
+```
+The R squared variable is 0.228, which is smaller than the R Squared variable in the first model. The MAE variable is 5.90 and the RMSE variable is 9.14. These are larger than first model. All of the variables are worse than in the first model. When comparing the residual plots between the two models there is virtually no change. Due to these reasons I decided to keep the first model.
+
+## MY MODEL
+
+I have attempted to add many different variables into this model, I only included two of them that showed the most change, but surprisingly the model does not change. The variables that I have added all have not significantly changed the model or predictions. I wanted to add in demographic data to this model but it was not possible because the demographic data is county related, not state.
+
+Below is the model I have decided to use:
+```{r message=FALSE, warning=FALSE}
+turnout1216Untouched <- turnout1216
+mymodel <- lm(turnoutPercent2016 ~ Voting.Age.Population.VAP2016 + Total.Ballots.Counted2012 + Voting.Eligible.Population.VEP2012 + VoterIDLawVerbose, data = rest)
+mymodel
+mymodel$coefficients
+mypredictions <- add_predictions(rest, mymodel)
+head(mypredictions)
+ggplot(data = mypredictions, mapping = aes(x = turnoutPercent2016, y = pred, color = VoterIDLawVerbose)) +
+  geom_point() +
+  geom_abline(intercept = 0, slope = 1, color = "red")
+
+R2(mypredictions$pred, mypredictions$turnoutPercent2016)
+MAE(mypredictions$pred, mypredictions$turnoutPercent2016)
+RMSE(mypredictions$pred, mypredictions$turnoutPercent2016)
+
+myresids <- add_residuals(rest, mymodel)
+
+ggplot(data = myresids, mapping = aes(x = turnoutPercent2016, y = resid, color = VoterIDLawVerbose)) +
+  geom_ref_line(h = 0) +
+  geom_point()
+```
+This model is useful because it compares the actual turnout percentage to our prediction. The residual plot is not completely accurate, but it is good that none of the residuals are bunched together in any areas. It is impossible to make this a perfect model, as there are countless variables that contribute to a state's voter turnout. However, the models predictions are generally not completely off.
+
+## TEST
+```{r}
+predictions <- add_predictions(test, mymodel)
+head(predictions)
+
+ggplot(data = predictions, mapping = aes(x = turnoutPercent2016, y = pred, color = VoterIDLawVerbose)) + 
+  geom_point() +
+  geom_abline(intercept = 0, slope = 1, color = "red")
+
+R2(predictions$pred, predictions$turnoutPercent2016)
+MAE(predictions$pred, predictions$turnoutPercent2016)
+RMSE(predictions$pred, predictions$turnoutPercent2016)
+
+resids <- add_residuals(test, mymodel)
+head(resids)
+
+ggplot(data = resids, mapping = aes(x = turnoutPercent2016, y = resid, color = VoterIDLawVerbose)) +
+  geom_ref_line(h = 0) +
+  geom_point()
+```
+After I finished training my model and decided that this is my final model, I ran the test set. Although I feel that my model performed better than the test set did, I do not think this test result is bad. The residual plot is not as close as I would like it to be, but the R Squared value is 0.49 (the closest to one so far), the MAE value is 3.11, and the RMSE value is 4.14. Overall these are the best values so far.
+
+## Old Models
+
+This was my original model, but this does not work well. The first issue is that the variable VoterIDLaw is categorical, so it is hard to work with all together. I split up the tibble into five for each category (I have not included these models in the report). Another issue is that this linear model is using the voter law of that state to predict the turnout percent per state. This is far too simple. My model below uses numerous variables to predict voter turnout percent per state.
+```{r message=FALSE, warning=FALSE}
+model <- lm(turnoutPercent2016 ~ VoterIDLaw, data = stateVoterTurnout2016)
+model
+model$coefficients
+ggplot(data = stateVoterTurnout2016, mapping = aes(x = VoterIDLaw, y = turnoutPercent2016)) +
+  geom_point() +
+  geom_abline(intercept = model$coefficients[1], slope = model$coefficients[2], color = "red")
+
+ggplot(stateVoterTurnout2016, mapping = aes(x = Voting.Eligible.Population.VEP2016, y = turnoutPercent2016, color = VoterIDLawVerbose)) +
+  geom_point(alpha = 1) +
+  geom_smooth() +
+  ylim(0,100)
+
+
+model3 <- lm(turnoutPercent2016 ~ ns(VoterIDLaw, 2), data = stateVoterTurnout2016)
+
+grid3 <- data_grid(stateVoterTurnout2016, VoterIDLaw) %>%
+  add_predictions(model3)
+
+data <- add_residuals(stateVoterTurnout2016, model3)
+
+ggplot(data = data, mapping = aes(x = VoterIDLaw)) +
+  geom_point(mapping = aes(y = turnoutPercent2016)) +
+  geom_line(mapping = aes(y = pred), data = grid3, color = "red")
+
+ggplot(data = data, mapping = aes(x = VoterIDLaw, y = resid)) +
+  geom_ref_line(h = 0) +
+  geom_point()
+```
+
+Below I have five separate tables for each of the five voter ID laws. I was looking at the relationship between people over 18 in 2016, the total number of ballots counted in 2012, and the eligible voting population in 2016. I used all of these variables to attempt to predict the voter turnout for 2016 per voter ID law. However, due to the lack of data points, only 50 for each state, when I split the data into the five voter ID laws I do not have enough information for these models to be valuable.
+```{r}
+one <- turnout1216Untouched %>%
+  filter(VoterIDLaw == 1)
+two <- turnout1216Untouched %>%
+  filter(VoterIDLaw == 2)
+three <- turnout1216Untouched %>%
+  filter(VoterIDLaw == 3)
+four <- turnout1216Untouched %>%
+  filter(VoterIDLaw == 4)
+five <- turnout1216Untouched %>%
+  filter(VoterIDLaw == 5)
+```
+
+## No ID Requirement
+```{r message=FALSE, warning=FALSE}
+model1 <- lm(turnoutPercent2016 ~ Voting.Age.Population.VAP2016 + Total.Ballots.Counted2012 + Voting.Eligible.Population.VEP2012, data = one)
+model1
+model1$coefficients
+one <- add_predictions(one, model1)
+ggplot(data = one, mapping = aes(x = turnoutPercent2016, y = pred)) +
+  geom_point() +
+  geom_abline(intercept = 0, slope = 1, color = "red")
+one <- add_residuals(one, model1)
+ggplot(data = one, mapping = aes(x = turnoutPercent2016, y = resid)) +
+  geom_ref_line(h = 0) +
+  geom_point()
+```
+
+### Non-strict non-photo ID
+```{r message=FALSE, warning=FALSE}
+model2 <- lm(turnoutPercent2016 ~ Voting.Age.Population.VAP2016 + Total.Ballots.Counted2012 + Voting.Eligible.Population.VEP2012, data = two)
+model2
+model2$coefficients
+two <- add_predictions(two, model2)
+ggplot(data = two, mapping = aes(x = turnoutPercent2016, y = pred)) +
+  geom_point() +
+  geom_abline(intercept = 0, slope = 1, color = "red")
+two <- add_residuals(two, model2)
+ggplot(data = two, mapping = aes(x = turnoutPercent2016, y = resid)) +
+  geom_ref_line(h = 0) +
+  geom_point()
+```
+
+### Non-strict photo ID
+```{r message=FALSE, warning=FALSE}
+model3 <- lm(turnoutPercent2016 ~ Voting.Age.Population.VAP2016 + Total.Ballots.Counted2012 + Voting.Eligible.Population.VEP2012, data = three)
+model3
+model3$coefficients
+three <- add_predictions(three, model3)
+ggplot(data = three, mapping = aes(x = turnoutPercent2016, y = pred)) +
+  geom_point() +
+  geom_abline(intercept = 0, slope = 1, color = "red")
+three <- add_residuals(three, model3)
+ggplot(data = three, mapping = aes(x = turnoutPercent2016, y = resid)) +
+  geom_ref_line(h = 0) +
+  geom_point()
+```
+
+### Strict non-photo ID
+```{r message=FALSE, warning=FALSE}
+model4 <- lm(turnoutPercent2016 ~ Voting.Age.Population.VAP2016 + Total.Ballots.Counted2012 + Voting.Eligible.Population.VEP2012, data = four)
+model4
+model4$coefficients
+four <- add_predictions(four, model4)
+ggplot(data = four, mapping = aes(x = turnoutPercent2016, y = pred)) +
+  geom_point() +
+  geom_abline(intercept = 0, slope = 1, color = "red")
+four <- add_residuals(four, model4)
+ggplot(data = four, mapping = aes(x = turnoutPercent2016, y = resid)) +
+  geom_ref_line(h = 0) +
+  geom_point()
+```
+
+### Strict photo ID
+```{r message=FALSE, warning=FALSE}
+model5 <- lm(turnoutPercent2016 ~ Voting.Age.Population.VAP2016 + Total.Ballots.Counted2012 + Voting.Eligible.Population.VEP2012, data = five)
+model5
+model5$coefficients
+five <- add_predictions(five, model5)
+ggplot(data = five, mapping = aes(x = turnoutPercent2016, y = pred)) +
+  geom_point() +
+  geom_abline(intercept = 0, slope = 1, color = "red")
+five <- add_residuals(five, model5)
+ggplot(data = five, mapping = aes(x = turnoutPercent2016, y = resid)) +
+  geom_ref_line(h = 0) +
+  geom_point()
+```
+All of these models are not extremely accurate. It looks like the variables that have been chosen are not the only direct causation to voter turnout. This does not mean that they do not play a factor. These models are not incorrect, they are just not telling the whole picture. There could be other factors like demographics per state or the friction of the political climate per presidential election.
+
+
+## Summary
+
+In conclusion, it is not possible to determine a state's voter turnout based on their voter ID law. There are far too many factors that contribute to voter turnout in a presidential election for a given year, and many of them could not be included in my model. Some of these are the demographic of the state, the political climate that year, the satisfaction or dissatisfaction with the current president, and people like Stacy Abrams who put in extra work to get people registered to vote. If there was more data then I could have looked at the relationship between the strictness of the voter ID law and voter turnout per state, but I was unable to do that given that I only have 50 data points spread across 5 types of ID laws. However, it is a very interesting topic and one that is very relevant today. The voter turnout in the 2020 election was immense, and that is something that cannot be explained by which state had which type of voter ID law.
